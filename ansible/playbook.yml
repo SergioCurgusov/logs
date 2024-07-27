@@ -1,0 +1,44 @@
+---
+- hosts: web # part running on web hosts
+  become: true
+  tasks:
+  - name: Update repositories cache and install "nginx" package
+    ansible.builtin.apt:
+      name: nginx
+      update_cache: yes
+  - name: "add block"
+    blockinfile:
+      path: /etc/nginx/nginx.conf 
+      insertafter: '^\s*(.*error_log.*)'
+      block: |
+        error_log  syslog:server=192.168.56.15:514,tag=nginx_error;
+        access_log syslog:server=192.168.56.15:514,tag=nginx_access,severity=info combined;
+  - name: Restart service httpd, in all cases
+    ansible.builtin.service:
+      name: nginx
+      state: restarted
+
+- hosts: log # part running on log hosts
+  become: true
+  tasks:
+  - name: Update repositories cache and install "lynx" package
+    ansible.builtin.apt:
+      name: lynx
+      update_cache: yes
+  - name: "Uncomment the line including tcp"
+    replace:
+      path: /etc/rsyslog.conf
+      regexp: '^\s*#*\s*(.*im..p.*)'
+      replace: '\1'
+  - name: "add block"
+    blockinfile:
+      path: /etc/rsyslog.conf
+      block: |
+        #Add remote logs
+        $template RemoteLogs,"/var/log/rsyslog/%HOSTNAME%/%PROGRAMNAME%.log"
+        *.* ?RemoteLogs
+        & ~
+  - name: Restart service httpd, in all cases
+    ansible.builtin.service:
+      name: rsyslog
+      state: restarted
